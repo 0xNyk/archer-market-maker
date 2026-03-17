@@ -58,9 +58,9 @@ Solana transactions cost compute units. The bot detects what changed since last 
 
 | Instruction | CU Cost | When |
 |-------------|---------|------|
-| `UpdateMidPrice` | ~750 | Price moved but level structure unchanged (most cycles) |
-| `UpdateBook` | ~5,500 | Level sizes or count changed |
-| `ClearBook` | ~650 | Shutdown, error, or stale feed |
+| `UpdateMidPrice` | ~200 | Price moved but level structure unchanged (most cycles) |
+| `UpdateBook` | ~4,500 | Level sizes or count changed |
+| `ClearBook` | ~180 | Shutdown, error, or stale feed |
 
 In practice, **~90% of cycles use the cheap mid-only path**, saving ~85% of CU.
 
