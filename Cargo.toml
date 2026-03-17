@@ -1,0 +1,42 @@
+[package]
+name = "archer-market-maker"
+version = "0.1.0"
+edition = "2024"
+description = "A simple market maker for the Archer Exchange on Solana"
+license = "Apache-2.0"
+
+[dependencies]
+# Solana
+solana-sdk = "2.3.0"
+solana-client = "2.3.0"
+
+# Zero-copy deserialization of on-chain accounts
+bytemuck = { version = "1.24", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+tokio-util = "0.7"
+
+# HTTP client for Coinbase price feed
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Atomics (AtomicF64)
+portable-atomic = { version = "1", features = ["float"] }
+
+# SPL token programs
+spl-token = { version = "8.0.0", features = ["no-entrypoint"] }
+spl-token-2022 = { version = "8.0.0", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "6.0.0", features = ["no-entrypoint"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"

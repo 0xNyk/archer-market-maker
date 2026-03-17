@@ -1,0 +1,145 @@
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+use clap::Parser;
+use serde::Deserialize;
+
+#[derive(Parser, Debug)]
+#[command(
+    name = "archer-market-maker",
+    about = "A simple market maker for Archer Exchange on Solana"
+)]
+pub enum Cli {
+    /// Start the market maker
+    Run {
+        #[arg(short, long, default_value = "config/default.toml")]
+        config: PathBuf,
+        #[arg(long, default_value_t = false)]
+        shadow: bool,
+    },
+    /// Initialize your maker book on-chain (one-time)
+    Init {
+        #[arg(short, long, default_value = "config/default.toml")]
+        config: PathBuf,
+    },
+    /// Deposit tokens into your maker book
+    Deposit {
+        #[arg(short, long, default_value = "config/default.toml")]
+        config: PathBuf,
+        #[arg(long)]
+        base: f64,
+        #[arg(long)]
+        quote: f64,
+    },
+    /// Withdraw all funds from your maker book
+    Withdraw {
+        #[arg(short, long, default_value = "config/default.toml")]
+        config: PathBuf,
+    },
+    /// Emergency: clear all orders immediately
+    Kill {
+        #[arg(short, long, default_value = "config/default.toml")]
+        config: PathBuf,
+    },
+    /// Print current on-chain maker book status
+    Status {
+        #[arg(short, long, default_value = "config/default.toml")]
+        config: PathBuf,
+    },
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MMConfig {
+    pub market: MarketSettings,
+    pub connection: ConnectionSettings,
+    pub feed: FeedSettings,
+    pub strategy: StrategySettings,
+    pub execution: ExecutionSettings,
+    pub monitoring: MonitoringSettings,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MarketSettings {
+    pub market_pubkey: String,
+    pub maker_keypair_path: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ConnectionSettings {
+    pub rpc_url: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct FeedSettings {
+    pub coinbase_product_id: String,
+    #[serde(default = "default_poll_ms")]
+    pub poll_interval_ms: u64,
+    #[serde(default = "default_staleness_ms")]
+    pub staleness_timeout_ms: u64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct StrategySettings {
+    pub spread_levels_bps: Vec<f64>,
+    #[serde(default = "default_inventory_pct")]
+    pub inventory_pct: f64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ExecutionSettings {
+    #[serde(default = "default_loop_ms")]
+    pub loop_interval_ms: u64,
+    #[serde(default = "default_priority_fee")]
+    pub priority_fee_microlamports: u64,
+    #[serde(default)]
+    pub shadow_mode: bool,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MonitoringSettings {
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
+}
+
+pub fn load_config(path: &Path) -> Result<MMConfig> {
+    let contents =
+        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let config: MMConfig =
+        toml::from_str(&contents).with_context(|| format!("parsing {}", path.display()))?;
+    validate_config(&config)?;
+    Ok(config)
+}
+
+fn validate_config(c: &MMConfig) -> Result<()> {
+    anyhow::ensure!(!c.market.market_pubkey.is_empty(), "market_pubkey required");
+    anyhow::ensure!(!c.market.maker_keypair_path.is_empty(), "maker_keypair_path required");
+    anyhow::ensure!(!c.connection.rpc_url.is_empty(), "rpc_url required");
+    anyhow::ensure!(!c.feed.coinbase_product_id.is_empty(), "coinbase_product_id required");
+    anyhow::ensure!(!c.strategy.spread_levels_bps.is_empty(), "need at least 1 spread level");
+    anyhow::ensure!(c.strategy.spread_levels_bps.len() <= 16, "max 16 levels per side");
+    anyhow::ensure!(
+        c.strategy.spread_levels_bps.iter().all(|&s| s > 0.0),
+        "all spread levels must be positive"
+    );
+    anyhow::ensure!(
+        c.strategy.inventory_pct > 0.0 && c.strategy.inventory_pct <= 100.0,
+        "inventory_pct must be between 0 and 100"
+    );
+    Ok(())
+}
+
+fn default_poll_ms() -> u64 { 1000 }
+fn default_staleness_ms() -> u64 { 5000 }
+fn default_inventory_pct() -> f64 { 80.0 }
+fn default_loop_ms() -> u64 { 200 }
+fn default_priority_fee() -> u64 { 100 }
+fn default_log_level() -> String { "info".into() }
+
+pub fn resolve_path(s: &str) -> PathBuf {
+    if let Some(rest) = s.strip_prefix("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            return PathBuf::from(format!("{}/{}", home, rest));
+        }
+    }
+    PathBuf::from(s)
+}

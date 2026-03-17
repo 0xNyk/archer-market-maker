@@ -1,0 +1,52 @@
+# =============================================================================
+# Archer Market Maker — Default Configuration
+# =============================================================================
+#
+# A simple market maker for the Archer Exchange on Solana.
+# Places static bid/ask levels around a Coinbase spot price.
+#
+# Replace market_pubkey, maker_keypair_path, and rpc_url before running.
+# =============================================================================
+
+[market]
+# SOL USDC market
+market_pubkey = "4G1A6nhCq3QdHMoVVtJ3PZmAHR4temsvXrWgb9yxX7ZN"
+maker_keypair_path = "~/.config/solana/id.json"
+
+[connection]
+rpc_url = "https://api.mainnet-beta.solana.com"
+
+[feed]
+# Coinbase product ID — must match your market's pair.
+# Examples: "SOL-USD", "ETH-USD", "BTC-USD"
+coinbase_product_id = "SOL-USD"
+
+# How often to poll Coinbase for a new price (milliseconds).
+poll_interval_ms = 1000
+
+# If no successful price fetch for this long, pull all quotes.
+staleness_timeout_ms = 5000
+
+[strategy]
+# Spread levels in basis points (1 bps = 0.01%).
+# Each value places one bid and one ask at that distance from mid.
+spread_levels_bps = [2.0, 5.0, 7.0, 10.0, 12.0, 15.0, 20.0, 25.0]
+
+# What % of total deposited inventory to quote across all levels.
+# Each level gets an equal share: inventory_pct / num_levels.
+# 80% means 20% kept as reserve.
+inventory_pct = 80.0
+
+[execution]
+# How often the engine loop runs (milliseconds).
+# 200ms = 5 updates per second.
+loop_interval_ms = 200
+
+# Solana priority fee in microlamports per compute unit.
+priority_fee_microlamports = 100
+
+# Shadow mode: compute quotes but don't send transactions.
+shadow_mode = false
+
+[monitoring]
+log_level = "info"

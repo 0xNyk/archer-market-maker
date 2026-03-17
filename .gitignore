@@ -1,0 +1,23 @@
+target/
+.cargo
+.cache
+
+# log files
+*.log
+log-*.txt
+log-*/
+!log-collector/
+!log-analyzer/*
+!log-utils/
+
+# Secrets & environment
+.env
+.env.*
+*.pem
+
+# Terraform
+terraform.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
