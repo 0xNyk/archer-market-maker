@@ -8,24 +8,25 @@ Places bid and ask orders on an Archer on-chain orderbook using Binance WebSocke
 
 ## How It Works
 
-The bot runs a loop every 200ms:
+The bot is **event-driven** — it reacts instantly to WebSocket price changes instead of polling:
 
-1. **Fetch price** — streams live best bid/ask via Binance WebSocket
-2. **Compute quotes** — places 8 bid/ask levels at volatility-adjusted bps offsets from mid
-3. **Send transaction** — picks the cheapest Solana instruction type to update the on-chain book
+1. **Price change** — when the feed delivers a new mid price that changes the on-chain tick, the engine fires an update immediately
+2. **Heartbeat** — if no price change occurs for `heartbeat_interval_ms` (default 100ms), a heartbeat update is sent with the freshest price
+3. **Compute quotes** — places 8 bid/ask levels at volatility-adjusted bps offsets from mid
+4. **Send transaction** — picks the cheapest Solana instruction type to update the on-chain book
 
 ```
 Binance WebSocket                     Archer Exchange
   (live book ticker)                   (on-chain orderbook)
        │                                      ▲
        ▼                                      │
-  ┌──────────┐      ┌──────────┐      ┌────────────────┐
-  │  Feed    │ ──▶  │  Engine  │ ──▶  │  TX Sender     │
-  │ (stream) │      │ (loop)   │      │ (fire & forget)│
-  └──────────┘      └──────────┘      └────────────────┘
-                         │
-                    Strategy
-                 (vol-adjusted spreads)
+  ┌──────────┐  notify  ┌──────────┐   ┌────────────────┐
+  │  Feed    │ ──────▶  │  Engine  │──▶│  TX Sender     │
+  │ (stream) │          │ (event)  │   │ (fire & forget)│
+  └──────────┘          └──────────┘   └────────────────┘
+                     price change │ heartbeat timeout
+                             Strategy
+                         (vol-adjusted spreads)
 ```
 
 ### What gets placed on the book
@@ -167,7 +168,7 @@ All settings in `config/default.toml`:
 | `strategy` | `vol_window` | `300` | Rolling window size (price samples) for volatility |
 | `strategy` | `vol_baseline_bps` | `5.0` | Per-sample vol (bps) at which spreads are unchanged |
 | `strategy` | `vol_max_multiplier` | `5.0` | Maximum spread multiplier from vol scaling |
-| `execution` | `loop_interval_ms` | `200` | Engine cycle time |
+| `execution` | `heartbeat_interval_ms` | `100` | Max idle time before heartbeat update |
 | `execution` | `priority_fee_microlamports` | `100` | Solana priority fee |
 | `execution` | `shadow_mode` | `false` | Dry run mode |
 | `monitoring` | `log_level` | `info` | Log verbosity |

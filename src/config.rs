@@ -95,8 +95,8 @@ pub struct StrategySettings {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ExecutionSettings {
-    #[serde(default = "default_loop_ms")]
-    pub loop_interval_ms: u64,
+    #[serde(default = "default_heartbeat_ms")]
+    pub heartbeat_interval_ms: u64,
     #[serde(default = "default_priority_fee")]
     pub priority_fee_microlamports: u64,
     #[serde(default)]
@@ -145,7 +145,7 @@ fn default_inventory_pct() -> f64 { 80.0 }
 fn default_vol_window() -> usize { 300 }
 fn default_vol_baseline_bps() -> f64 { 5.0 }
 fn default_vol_max_multiplier() -> f64 { 5.0 }
-fn default_loop_ms() -> u64 { 200 }
+fn default_heartbeat_ms() -> u64 { 100 }
 fn default_priority_fee() -> u64 { 100 }
 fn default_log_level() -> String { "info".into() }
 

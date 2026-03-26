@@ -1,10 +1,14 @@
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use portable_atomic::AtomicF64;
+use tokio::sync::Notify;
 
 pub struct SharedState {
     pub mid_price: AtomicF64,
     pub price_timestamp_us: AtomicU64,
     pub feed_alive: AtomicBool,
+
+    /// Feed signals the engine whenever a new price arrives.
+    pub price_notify: Notify,
 
     pub cached_mid_ticks: AtomicU64,
     pub base_total_lots: AtomicU64,
@@ -20,6 +24,7 @@ pub struct SharedState {
     pub mid_only_updates: AtomicU64,
     pub book_updates: AtomicU64,
     pub clear_book_sends: AtomicU64,
+    pub heartbeat_sends: AtomicU64,
 
     pub engine_alive: AtomicBool,
 }
@@ -30,6 +35,7 @@ impl SharedState {
             mid_price: AtomicF64::new(0.0),
             price_timestamp_us: AtomicU64::new(0),
             feed_alive: AtomicBool::new(false),
+            price_notify: Notify::new(),
             cached_mid_ticks: AtomicU64::new(0),
             base_total_lots: AtomicU64::new(0),
             quote_total_lots: AtomicU64::new(0),
@@ -41,6 +47,7 @@ impl SharedState {
             mid_only_updates: AtomicU64::new(0),
             book_updates: AtomicU64::new(0),
             clear_book_sends: AtomicU64::new(0),
+            heartbeat_sends: AtomicU64::new(0),
             engine_alive: AtomicBool::new(false),
         }
     }

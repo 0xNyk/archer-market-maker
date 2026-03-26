@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::sync::atomic::Ordering::Relaxed;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::archer::{
     config::MarketConfig,
@@ -32,7 +32,7 @@ pub async fn run_engine(
     cancel: CancellationToken,
 ) {
     let strategy = Strategy::new(&mm_config.strategy);
-    let interval = Duration::from_millis(mm_config.execution.loop_interval_ms);
+    let heartbeat = Duration::from_millis(mm_config.execution.heartbeat_interval_ms);
     let signer_pubkey = signer.pubkey();
     let staleness_us = mm_config.feed.staleness_timeout_ms * 1000;
 
@@ -43,23 +43,30 @@ pub async fn run_engine(
 
     tracing::info!(
         %market_pubkey, %maker_pubkey,
-        interval_ms = mm_config.execution.loop_interval_ms,
+        heartbeat_ms = mm_config.execution.heartbeat_interval_ms,
         num_levels = mm_config.strategy.spread_levels_bps.len(),
-        "Engine starting"
+        "Engine starting (event-driven + heartbeat)"
     );
 
     state.engine_alive.store(true, Relaxed);
 
     loop {
-        let cycle_start = Instant::now();
+        // Wait for either a price update or the heartbeat timeout.
+        let is_heartbeat = tokio::select! {
+            _ = cancel.cancelled() => {
+                tracing::info!("Engine shutting down, clearing book");
+                state.engine_alive.store(false, Relaxed);
+                local_seq += 1;
+                let ix = build_clear_book_ix(&signer_pubkey, &market_pubkey, &maker_pubkey, local_seq);
+                tx_sender.fire(vec![ix], TxPriority::Emergency, CU_CLEAR_BOOK);
+                return;
+            }
+            _ = state.price_notify.notified() => false,
+            _ = tokio::time::sleep(heartbeat) => true,
+        };
 
         if cancel.is_cancelled() {
-            tracing::info!("Engine shutting down, clearing book");
-            state.engine_alive.store(false, Relaxed);
-            local_seq += 1;
-            let ix = build_clear_book_ix(&signer_pubkey, &market_pubkey, &maker_pubkey, local_seq);
-            tx_sender.fire(vec![ix], TxPriority::Emergency, CU_CLEAR_BOOK);
-            return;
+            continue; // will hit the cancel branch above
         }
 
         if state.consecutive_failures.load(Relaxed) >= 10 {
@@ -85,14 +92,12 @@ pub async fn run_engine(
             state.clear_book_sends.fetch_add(1, Relaxed);
             needs_initial_book = true;
             last_structure_hash = 0;
-            sleep_remaining(cycle_start, interval, &cancel).await;
             continue;
         }
 
         let mid_price = state.mid_price.load(Relaxed);
         if mid_price <= 0.0 || !mid_price.is_finite() {
             state.cycles_total.fetch_add(1, Relaxed);
-            sleep_remaining(cycle_start, interval, &cancel).await;
             continue;
         }
 
@@ -127,6 +132,11 @@ pub async fn run_engine(
                 needs_initial_book = true;
             }
             QuoteDecision::UpdateMidOnly { new_mid_ticks } => {
+                // Skip if ticks unchanged (price moved but not enough to change tick).
+                if new_mid_ticks == last_sent_mid_ticks && !is_heartbeat {
+                    state.cycles_total.fetch_add(1, Relaxed);
+                    continue;
+                }
                 local_seq += 1;
                 let ix = build_update_mid_price_ix(
                     &signer_pubkey, &market_pubkey, &maker_pubkey, new_mid_ticks, local_seq,
@@ -134,6 +144,9 @@ pub async fn run_engine(
                 tx_sender.fire(vec![ix], TxPriority::Normal, CU_MID_ONLY);
                 state.mid_only_updates.fetch_add(1, Relaxed);
                 state.updates_sent.fetch_add(1, Relaxed);
+                if is_heartbeat {
+                    state.heartbeat_sends.fetch_add(1, Relaxed);
+                }
                 last_sent_mid_ticks = new_mid_ticks;
             }
             QuoteDecision::UpdateFull { ref book_update, structure_hash } => {
@@ -159,16 +172,5 @@ pub async fn run_engine(
         }
 
         state.cycles_total.fetch_add(1, Relaxed);
-        sleep_remaining(cycle_start, interval, &cancel).await;
-    }
-}
-
-async fn sleep_remaining(start: Instant, interval: Duration, cancel: &CancellationToken) {
-    let elapsed = start.elapsed();
-    if elapsed < interval {
-        tokio::select! {
-            _ = cancel.cancelled() => {},
-            _ = tokio::time::sleep(interval - elapsed) => {},
-        }
     }
 }

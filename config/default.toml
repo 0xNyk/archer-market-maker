@@ -53,9 +53,10 @@ vol_baseline_bps = 5.0
 vol_max_multiplier = 5.0
 
 [execution]
-# How often the engine loop runs (milliseconds).
-# 200ms = 5 updates per second.
-loop_interval_ms = 200
+# Heartbeat interval (milliseconds). The engine reacts instantly to price
+# changes from the WebSocket feed. If no price change occurs within this
+# interval, a heartbeat update is sent with the freshest available price.
+heartbeat_interval_ms = 100
 
 # Solana priority fee in microlamports per compute unit.
 priority_fee_microlamports = 100

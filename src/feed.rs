@@ -128,6 +128,7 @@ pub async fn run_feed(
                                         };
 
                                         handle_tick(&state, &mut vol_tracker, bid, ask);
+                                        state.price_notify.notify_one();
 
                                         if !state.feed_alive.load(Relaxed) {
                                             state.feed_alive.store(true, Relaxed);
