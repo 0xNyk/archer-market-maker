@@ -11,8 +11,6 @@ log-*/
 !log-utils/
 
 # Secrets & environment
-.env
-.env.*
 *.pem
 
 # Terraform
@@ -21,3 +19,5 @@ terraform.tfvars
 *.tfstate.backup
 .terraform/
 .terraform.lock.hcl
+config.bat
+node_modules
